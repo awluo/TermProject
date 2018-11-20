@@ -23,7 +23,7 @@ class GameRuntime(object):
         self.cat = Player(self.screenW, self.screenH, self.charW, 
         self.charH, self.groundH)
         
-        self.platforms = [Platform(200,400),Platform(700,500)] #pos of platforms
+        self.platforms = [Platform(200,400),Platform(700,500), Platform(500, 350)] #pos of platforms
 
         #gameState
         self.gameover = False
@@ -68,7 +68,7 @@ class GameRuntime(object):
     def mousePressed(self):
         pass
     
-    #handle key presses    s
+    #handle key presses
     def keyPressed(self):
         
         width = self.cat.width
@@ -101,9 +101,11 @@ class GameRuntime(object):
     def run(self):
         #MAIN PROGRAM LOOP
         while not self.done:
-
-            while(self.cat.y <= self.groundH - self.cat.height/2):
+            '''if self.cat.inAir:
                 self.cat.y += 5
+                print("in air")'''
+            '''while(self.cat.y <= self.groundH - self.cat.height/2):
+                self.cat.y += 5'''
             
             if self.gameover:
                 font = pygame.font.Font(None, 36)

@@ -1,3 +1,4 @@
+
 import module_manager
 module_manager.review()
 import pygame
@@ -60,14 +61,17 @@ class Player(object):
         if self.x - self.width/2 <= 0: #if touching left wall
             self.x += self.xVel
         self.x -= self.xVel #move left
+        #check if falling off platform
         if not self.isJump: self.checkFall(platforms)
         
     def moveRight(self, platforms):
         if self.x + self.width/2 >= self.screenW:
             self.x -= self.xVel
         self.x += self.xVel
+        #check if falling off platfrom
         if not self.isJump: self.checkFall(platforms)
     
+    #move left or right
     def move(self, dir, platforms):
         self.isWalk = True
         self.dir = dir
@@ -75,38 +79,62 @@ class Player(object):
         if dir == "Left": self.moveLeft(platforms)
         else: self.moveRight(platforms)
     
+    #cat jump
     def jumpUp(self, platforms):
+        print("jump")
         if self.jumpCount >= -self.yVel:
             neg = 1
             if self.jumpCount < 0:
                 neg = -1
                 
             newY = -(self.jumpCount ** 2) * 0.5 * neg
+            #if not colliding with anything
             if not self.collision(platforms, (0,newY)):
+                #jump
                 self.y -= (self.jumpCount ** 2) * 0.5 * neg
                 
-            self.jumpCount -= 1
+                self.jumpCount -= 1
+                print("jump")
+            else:
+                print("no jump")
+                self.isJump = False
+                self.jumpCount = self.yVel
+                    
         
         else:
+            #stop jumping
+            print("stop jumping")
             self.isJump = False
             self.jumpCount = self.yVel
             self.checkFall(platforms)
-            
-    def checkFall(self, platforms):
-        fall = True
-        
-        for platform in platforms:
-            if not (self.onPlatform and platform.x - platform.w/2 - self.width/2 >= self.x or \
-            self.x >= platform.x + platform.w/2 + self.width/2):
-                fall = False
-            
-        if (fall): self.fall()
+            print("done")
     
+    #see if player should continue falling        
+    def checkFall(self, platforms):
+        print("check fall")
+        fall = True
+        #if in midair
+        for platform in platforms:
+            #if on platform don't fall
+            if platform.x - platform.w/2 - self.width/2 < self.x and \
+            self.x < platform.x + platform.w/2 + self.width/2 and \
+                self.y < platform.y + platform.h/2 + self.height/2:
+                fall = False
+                print("dont fall")
+        #fall if not on any platform
+        if (fall): 
+            print("fall")
+            self.fall()
+    
+    #fall to ground
     def fall(self):
+        self.onPlatform = False
+        print("fall")
         while (self.y < self.screenH - self.groundH - self.height/2):
             self.y += 1
-        self.onPlatform = False
-        #self.y += 1
+        self.land()
+        
+    def land(self):
         self.y = self.screenH - self.groundH - self.height/2
         
     
@@ -115,24 +143,29 @@ class Player(object):
         newX = self.x + dir[0]
         newY = self.y + dir[1]
         for platform in platforms:
+            #if collided with platform
             if platform.x - platform.w/2 - self.width/2 < newX and \
             newX < platform.x + platform.w/2 + self.width/2 and \
             platform.y - platform.h/2 - self.height/2 < newY and \
                 newY < platform.y + platform.h/2 + self.height/2 :
-        
+            
+                #if jumped onto platform
                 if self.isJump and self.y < platform.y - platform.h/2 - self.height/2:
                     self.y = platform.y - platform.h/2 - self.height/2
                     self.onPlatform = True
                     print("on platform")
-                
+
+                    
+                    
+                #if hit below platform
                 elif self.isJump and self.y > platform.y + platform.h/2 + self.height/2:
                     self.fall()
-                self.isJump = False
-                self.jumpCount = self.yVel
-                    
+                    self.onPlatform = False
+                        
+
                 
                 return True
-                
+        print("collision")
         return False
         
         
@@ -140,6 +173,4 @@ class Player(object):
         
         
         
-        
-        
-    
+     
