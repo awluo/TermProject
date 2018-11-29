@@ -2,6 +2,9 @@ import pygame as pg
 from sprites import *
 import random
 
+# Pygame Platformer Base Code Citation
+# KidsCanCode - Game Development with Pygame video series
+
 class Game:
     def __init__(self):
         #initialize game window
@@ -24,32 +27,35 @@ class Game:
         self.running = True
         self.highScores = [0,0,0,0,0]
         self.platH = 15 #platform height
-
+        self.cloud = pg.image.load('cloud.png') #platform images
+        self.cloud2 = pg.image.load('cloud2.png')
+        self.coin = pg.image.load('coin.png') #coin image
+        self.bee = pg.image.load('bee.png') #enemy image
+        self.heart = pg.image.load('heart.png') #heart image
     
     def new(self):
         #start a new game
-        #self.__init__()
-        self.ground = Ground(0, HEIGHT-40, WIDTH, 40)
-        self.newHighScore = False
-        
-        #starting platforms (x, y, width, height)
-        self.platformList = [ self.ground,
-                        Platform(WIDTH/2 - 50, HEIGHT * 3/4, 100, self.platH),
-                        Platform(380, 300, 100, self.platH),
-                        Platform(675, 100, 100, self.platH),
-                        Platform(705, 200, 200, self.platH),
-                        Platform(505, 100, 100, self.platH),
-                        Platform(805, 129, 200, self.platH),
-                        Platform(105, 400, 200, self.platH)]
-        self.score = 0
         self.allSprites = pg.sprite.Group()
         self.platforms = pg.sprite.Group()
+        self.powerUps = pg.sprite.Group()
+        self.bullets = pg.sprite.Group()
+        self.enemyBullets = pg.sprite.Group()
+        self.enemies = pg.sprite.Group()
         self.player = Player(self)
-        self.allSprites.add(self.player)
-        self.allSprites.add(self.ground)
-        for p in self.platformList:
-            self.allSprites.add(p)
-            self.platforms.add(p)
+        self.lives = 3
+        
+        self.newHighScore = False
+        #starting platforms
+        self.platformList = [
+                        Platform(self, WIDTH/2 - 50, HEIGHT * 3/4),
+                        Platform(self, 380, 300),
+                        Platform(self, 675, 100),
+                        Platform(self, 705, 200),
+                        Platform(self, 505, 100),
+                        Platform(self, 805, 129),
+                        Platform(self, 105, 400)]
+        self.score = 0
+        self.mobTimer = 0
         self.run()
     
     def run(self):
@@ -60,22 +66,68 @@ class Game:
             self.events()
             self.update()
             self.draw()
-
         
     def update(self):
         #Game Loop - Update
         self.allSprites.update()
-        #check platform collisions only if fallling
+        
+        #spawn enemy
+        now = pg.time.get_ticks()
+        if now - self.mobTimer > 5000 + random.choice([-1000, -500, 0, 500, 1000]):
+            self.mobTimer = now
+            Enemy(self)
+        # hit mobs?
+        mobHits = pg.sprite.spritecollide(self.player, self.enemies, True)
+        enemyHits = pg.sprite.spritecollide(self.player, self.enemyBullets, True)
+        if mobHits or enemyHits:
+            self.loseLife()
+        
+        #check platform collisions only if falling
         if self.player.vel.y > 0:
             hits = pg.sprite.spritecollide(self.player, self.platforms, False)
             if hits:
-                #land on object
-                self.player.pos.y = hits[0].rect.top 
-                #stop moving downward
-                self.player.vel.y = 0
+                lowest = hits[0]
+                #find lowest platform hit
+                for hit in hits:
+                    if hit.rect.bottom > lowest.rect.bottom:
+                        lowest = hit
+                if self.player.pos.x < lowest.rect.right + 10 and \
+                    self.player.pos.x > lowest.rect.left - 10:
+                    #land on object
+                    if self.player.pos.y < lowest.rect.centery:
+                        self.player.pos.y = lowest.rect.top
+                        self.player.vel.y = 0 #stop moving downward
+                        self.player.jumping = False
+        
+        #check if player hits power  up
+        self.checkPowerUps()
+        self.checkEnemies()
+        
         #check gameOver
-        if self.player.rect.bottom >= self.ground.rect.top:
+        if self.player.rect.top >= self.screenH:
             self.playing = False
+    
+    #check if player collects power up
+    def checkPowerUps(self):
+        powHits = pg.sprite.spritecollide(self.player, self.powerUps, True)
+        for pow in powHits:
+            #increase score
+            if pow.type == "coin":
+                self.score += 10
+            elif pow.type == "heart":
+                self.lives += 1
+                
+    #check if player bullets attack enemy            
+    def checkEnemies(self):
+        #bullets hits
+        for bullet in self.bullets:
+            enemyHits = pg.sprite.spritecollide(bullet, self.enemies, True)
+            for hit in enemyHits:
+                self.score += 10
+
+    def loseLife(self):
+        self.lives -= 1 #lose a life
+        if self.lives == 0: self.playing = False
         
     def events(self):
         #Game Loop - events
@@ -84,54 +136,74 @@ class Game:
             if event.type == pg.QUIT:
                 self.running = False
                 self.playing = False
-            #space - jump        
+            #up arrow key to jump   
             elif event.type == pg.KEYDOWN:
                 if event.key == pg.K_UP:
                     self.player.jump()
-                    
+            elif event.type == pg.KEYUP:
+                if event.key == pg.K_UP:
+                    self.player.jumpCut()
+                    #space to shoot
+                if event.key == pg.K_SPACE:
+                    self.player.shoot()
         
         #key presses            
         keys = pg.key.get_pressed()       
-        if keys[pg.K_RIGHT] or keys[pg.K_LEFT]:
-            #increase score
-            self.score += 1
-            #move platforms
-            for p in self.platforms:
-                if not type(p) == Ground:
-                    p.rect.x -= self.player.vel.x
-                    #don't delete ground
-                    if p.rect.right <= 0:
-                        p.kill() #delete platforms offscreen
+        if keys[pg.K_RIGHT]:
+            self.player.dir = 1
+            self.movePlatforms()
+        elif  keys[pg.K_LEFT]:
+            self.player.dir = -1
+            self.movePlatforms()
                 
         #spawn new platforms
         while len(self.platforms) < 12:
             self.newPlatform()
+    
+    #move platforms in opposite direction
+    def movePlatforms(self):
+        #move platforms
+        for p in self.platforms:
+            p.rect.x -= self.player.vel.x
+            if p.rect.right <= 0:
+                p.kill() #delete platforms offscreen
     
     def newPlatform(self):
         #set random dimensions and loc
         width = random.randrange(50, 150)
         height = 20
         x = random.randrange(WIDTH, WIDTH * 1.5)
-        y = random.randrange(100, HEIGHT - self.ground.rect.height - 50)
-        p = Platform(x, y, width, self.platH)
-        self.platforms.add(p)
-        self.allSprites.add(p)
+        y = random.randrange(100, HEIGHT - 50)
+        Platform(self, x, y) #spawn new platform
         
     #draw game screen
     def draw(self):
         #Game Loop - draw
-        self.screen.fill((0,0,0))
-        
+        self.screen.fill((50,150,250))
+    
         self.allSprites.draw(self.screen)
+        #draw player over everything in front
+        self.screen.blit(self.player.image, self.player.rect)
+        
+        #draw hearts
+        self.drawLives()
+        
         self.drawText("Score: " + str(self.score), 
         40, (250,250,250), WIDTH/2, 15)
         pg.display.flip()
+    
+    #draw player lives
+    def drawLives(self):
+        margin = 60
+        height = 20
+        for i in range(1, self.lives + 1):
+            self.screen.blit(self.heart, (self.screenW - margin*i - 20, height))
         
     def showStartScreen(self):
         #game start screen
         self.screen.fill((0,0,0))
-        self.drawText("JUMP CAT", 40, (200,200,200), WIDTH/2, HEIGHT/4)
-        self.drawText("Arrows to Move, Space to Shoot", 25, 
+        self.drawText("JUMP CAT", 50, (200,200,0), WIDTH/2, HEIGHT/4)
+        self.drawText("Arrows to Move, Space to Shoot", 30, 
         (200,200,200), WIDTH/2, HEIGHT/2)
 
         self.drawText("[Press a key to play]", 30, 
@@ -144,9 +216,8 @@ class Game:
         if not self.running:
             return
         self.getHighScores()
-        WHITE = (200,200,200)
         self.screen.fill((0,0,0))
-        self.drawText("GAME OVER", 48, WHITE, WIDTH / 2, HEIGHT / 4)
+        self.drawText("GAME OVER", 48, (250, 10, 0), WIDTH / 2, HEIGHT / 4)
         self.drawHighScores()
         self.drawText("[Press a key to play again]", 30, WHITE, WIDTH / 2, 
         HEIGHT * 3 / 4)
@@ -190,6 +261,7 @@ class Game:
         textRect.midtop = (x,y)
         self.screen.blit(textSurface, textRect)
     
+    #update list of high scores
     def getHighScores(self):
         rank = -1
         for score in self.highScores:
@@ -203,14 +275,12 @@ class Game:
     def animate(self):
         now = pg.time.get_ticks()
     
-        
 #Run game!
 g = Game()
 g.showStartScreen()
 while g.running:
     g.new()
     g.showGameOver()
-
 pg.quit()
                 
                 
