@@ -13,6 +13,7 @@ class Game:
         
         #frames per sec
         self.FPS = 60
+        self.maxDist = 1000
         
         #graphics dimenions: width and height
         self.screenW = 900 
@@ -46,7 +47,8 @@ class Game:
         self.enemies = pg.sprite.Group()
         self.players = pg.sprite.Group()
         #self.player = Player(self)
-        self.lives = 3
+        self.lives1 = 3
+        self.lives2 = 0
         self.level = 1
         self.distance = 0
         self.mode = "start"
@@ -92,35 +94,46 @@ class Game:
         random.choice([-1000, -500, 0, 500, 1000]):
             self.mobTimer = now
             Enemy(self)
-        #check collision with enemies/enemy bullets
-        mobHits = pg.sprite.spritecollide(self.player, self.enemies, True)
-        enemyHits = pg.sprite.spritecollide(self.player, self.enemyBullets, True)
-        if mobHits or enemyHits:
-            self.loseLife() #lose a life
+
         
         #check platform collisions only if falling
-        self.checkPlatCollide()
-        
-        #check if player hits power  up
-        self.checkPowerUps()
-        self.checkEnemies()
+        for player in self.players:
+            self.checkPlatCollide(player)
+            
+            #check if player hits power  up
+            self.checkPowerUps(player)
+            #check if player hits enemy/enemy bullet
+            self.checkEnemyCollide(player)
+            
+        self.checkEnemiesKilled()
         
         #check gameOver
+        #for player in self.players:
         if self.player.rect.top >= self.screenH:
             self.playing = False
     
+    def checkEnemyCollide(self, player):
+        #check collision with enemies/enemy bullets
+        mobHits = pg.sprite.spritecollide(player, self.enemies, True)
+        enemyHits = pg.sprite.spritecollide(player, self.enemyBullets, True)
+        if mobHits or enemyHits:
+            self.loseLife(player) #lose a life
+    
     #check if player collects power up
-    def checkPowerUps(self):
-        powHits = pg.sprite.spritecollide(self.player, self.powerUps, True)
+    def checkPowerUps(self, player):
+        powHits = pg.sprite.spritecollide(player, self.powerUps, True)
         for pow in powHits:
             #increase score
             if pow.type == "coin":
                 self.score += 10
             elif pow.type == "heart":
-                self.lives += 1
+                if player.PID == "p1":
+                    self.lives1 += 1
+                elif player.PID == "p2":
+                    self.lives2 += 1
                 
     #check if player bullets attack enemy            
-    def checkEnemies(self):
+    def checkEnemiesKilled(self):
         #bullets hits
         for bullet in self.bullets:
             enemyHits = pg.sprite.spritecollide(bullet, self.enemies, True)
@@ -128,7 +141,7 @@ class Game:
                 self.score += 10
 
     #check platform collision if player is falling
-    def checkPlatCollide(self):
+    def checkPlatCollide(self, player):
         self.checkPlatCollideHelper(self.player)
         if not self.singlePlayer:
             self.checkPlatCollideHelper(self.player2)
@@ -155,9 +168,13 @@ class Game:
                         player.jumping = False
 
     #lose a life
-    def loseLife(self):
-        self.lives -= 1 
-        if self.lives == 0: self.playing = False
+    def loseLife(self, player):
+        if player.PID == "p1":
+            self.lives1 -= 1 
+        elif player.PID =="p2":
+            self.lives2 -= 1
+        if self.lives1 == 0 or \
+            (not self.singlePlayer and self.lives2 == 0): self.playing = False
         
     def events(self):
         #Game Loop - events
@@ -209,7 +226,7 @@ class Game:
         #increase distance
         self.distance += int(self.player.vel.x)
         #check level up
-        if self.distance >= 1000:
+        if self.distance >= self.maxDist:
             self.updateLevel()
             self.distance = 0 #reset to new level
             
@@ -265,10 +282,20 @@ class Game:
     
     #draw player lives
     def drawLives(self):
-        margin = 60
-        height = 20
-        for i in range(1, self.lives + 1):
+        margin = 50
+        height = 10
+        for i in range(1, self.lives1 + 1):
             self.screen.blit(self.heart, (self.screenW - margin*i - 20, height))
+
+        for i in range(1, self.lives2 + 1):
+            self.screen.blit(self.heart, (self.screenW - margin*i - 20, 
+            height + 40))
+        
+        if not self.singlePlayer:
+            self.drawText("p1", 25, 
+            RED, self.screenW - margin/3, height)
+            self.drawText("p2", 25, 
+            BLUE, self.screenW - margin/3, height + 40)
         
     def showStartScreen(self):
         #game start screen
@@ -280,12 +307,16 @@ class Game:
         
         self.buttonCol = (0,200,250)
         self.instructButton = Button(self, self.buttonCol, self.screenW//2, 
-        self.screenH//2, 200, 50, 'Instructions')
+        self.screenH//2.5, 220, 45, 'Instructions')
         self.instructButton.draw(self.screen)
         
         self.settingsButton = Button(self, self.buttonCol, self.screenW//2, 
-        self.screenH//1.5, 200, 50, 'Settings')
+        self.screenH//2.5 + 80, 220, 45, 'Settings')
         self.settingsButton.draw(self.screen)
+        
+        self.editorButton = Button(self, self.buttonCol, self.screenW//2, 
+        self.screenH//2.5 + 160, 220, 45, 'Level Editor')
+        self.editorButton.draw(self.screen)
             
         pg.display.flip()
         self.wait_for_key()
@@ -338,6 +369,18 @@ class Game:
 
         self.wait_for_key()
     
+    def drawLevelEditor(self):
+        #Game Loop - draw
+        self.screen.fill((50,150,250))
+        
+        self.drawText("Click to insert clouds!" + str(self.level), 
+        40, (250,250,0), 80, 15)
+        
+        self.drawText("Dist: " + str(self.distance), 
+        40, (250,250,0), 80, 50)
+        
+        pg.display.flip()
+    
     def showSettings(self):
         self.screen.fill((0,0,0))
         margin = 80
@@ -346,18 +389,12 @@ class Game:
         if self.singlePlayer: self.buttonCol = (250,250,250)
         else: self.buttonCol2 = (250, 250, 250)
         self.singlePlayerButton = Button(self, self.buttonCol, self.screenW//2, 
-        self.screenH//4, 200, 50, 'Single Player')
+        self.screenH//3, 200, 50, 'Single Player')
         self.singlePlayerButton.draw(self.screen)
         
         self.twoPlayerButton = Button(self, self.buttonCol2, self.screenW//2, 
-        self.screenH//4 + margin, 200, 50, 'Two Player')
+        self.screenH//3 + margin, 200, 50, 'Two Player')
         self.twoPlayerButton.draw(self.screen)
-
-        '''self.drawText("Level Editor", 30, 
-                (200,200,200), WIDTH/2, HEIGHT/4 + margin*2)
-
-        self.drawText("Character Editor", 30, 
-                (200,200,200), WIDTH/2, HEIGHT/4 + margin*3)'''
                 
         self.drawText("[Press a key to return]", 30, 
                 (200,200,200), WIDTH/2, HEIGHT/4 + margin*3)
@@ -405,6 +442,7 @@ class Game:
         self.player = Player(self)
         if not self.singlePlayer:
             self.player2 = Player2(self)
+            self.lives2 = 3
             
     #draw text on screen
     def drawText(self, text, size, color, x, y):
@@ -435,5 +473,4 @@ while g.running:
     g.new(g.singlePlayer)
     g.showGameOver()
 pg.quit()
-                
                 

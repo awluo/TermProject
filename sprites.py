@@ -6,6 +6,7 @@ import random
 
 class Player(pg.sprite.Sprite):
     def __init__(self, game):
+        self.PID ="p1"
         self.groups = game.allSprites, game.players
         #add sprite to these groups
         pg.sprite.Sprite.__init__(self, self.groups)
@@ -136,6 +137,7 @@ class Player(pg.sprite.Sprite):
 
 class Player2(Player):
     def __init__(self, game):
+        self.PID = "p2"
         self.groups = game.allSprites, game.players
         #add sprite to these groups
         pg.sprite.Sprite.__init__(self, self.groups)
@@ -409,4 +411,3 @@ class Button(pg.sprite.Sprite):
             
             
             
-
